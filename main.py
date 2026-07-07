@@ -16,10 +16,10 @@ def main():
     # print(args.query, args.model)
 
     pipeline = TextToSparqlPipeline(args.model)
-    pipeline.find_entities_and_relations(question=args.query)
+    entities, properties = pipeline.find_entities_and_properties(question=args.query)
+    candidates = pipeline.get_wikidata_ids(entities, properties)
+    pipeline.generate_sparql_query(args.query, candidates)
 
     
-
-
 if __name__ == "__main__":
     main()

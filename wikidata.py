@@ -40,8 +40,9 @@ def search_wikidata(search_term:str, search_type: str, limit: int = 4) -> List[D
                 "description": item.get("description", "No Description"),
                 "url": item.get("concepturi", f"https://www.wikidata.org/wiki/{item.get('id')}")
             })
-        # print(results)
+        # print(results['id'])
         return results
+
     except Exception as e:
         print(f"Warning: Wikidata search failed for '{search_term}': {e}")
         return []
