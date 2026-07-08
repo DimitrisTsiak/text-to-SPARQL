@@ -11,7 +11,7 @@ def print_results(results_data):
     columns = results.get("columns", [])
     rows = results.get("rows", [])
     if not rows:
-        print("\n! No results found for this query.")
+        print("\n No results found for this query :(")
         return
     print(f"\nSuccess! Found {len(rows)} results:")
     print("-~" * 40)
@@ -43,7 +43,7 @@ def print_results(results_data):
 
 def main():
     parser = argparse.ArgumentParser(description="Query Wikidata using natural language prompts")
-    parser.add_argument("--query", required=True, nargs="?", help="The question in natural language: eg. when was Feynman born?")
+    parser.add_argument("--query", required=False, nargs="?", help="The question in natural language: eg. when was Feynman born?")
     parser.add_argument("--model", type=str, default="gemini-3.1-flash-lite", help="the name of the model")
     args = parser.parse_args()
 
