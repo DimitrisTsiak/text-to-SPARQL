@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 import wikidata 
 
-TEMPERATURE = 0.0
+TEMPERATURE = 0.1
 
 SEED = 42
 #TODO: add more LLM API's
@@ -139,3 +139,78 @@ class TextToSparqlPipeline:
         
         result = json.loads(response.text)
         return result.get("sparql"), result.get("explanation")
+    
+    def execute_query_and_format(self, sparql_query:str)->Dict[str, Any]:
+        """
+        execute a SPARQL query
+        """
+        results = wikidata.sparql_query(sparql_query)
+        vars_list = results.get("head", {}).get("vars", [])
+        bindings = results .get("results", {}).get("bindings", [])
+        
+        formatted_rows = []
+        for binding in bindings:
+            row = {}
+            for var in vars_list:
+                row[var] = binding.get(var, {}).get("value", "N/A")
+            formatted_rows.append(row)
+            
+        return {
+            "columns": vars_list,
+            "rows": formatted_rows,
+            "raw": results 
+        }
+    
+    def run_pipeline(self, question:str, max_retries: int=3) -> Dict[str, Any]:
+        """
+        Natural language pipeline of natural language to SPARQL query with a correction loop on query execution
+        """
+
+        print(f"Extracting entities and properties from the question...")
+        entities, properties = self.find_entities_and_properties(question)
+        print(f"Extracted Entities: {entities}")
+        print(f"Extracted Properties: {properties}")
+
+        print(f"Searching for candidate IDs using the Wikidata API...")
+
+        candidates = self.get_wikidata_ids(entities, properties)
+        #print(candidates)
+
+        for entity, items in candidates["entities"].items():
+            candidate_list = [f"{item.get('id')} ({item.get('label')})" for item in items]
+            print(f" Entity '{entity}' candidates: {candidate_list}")
+        for prop, items in candidates["properties"].items():
+            candidate_list = [f"{item.get('id')} ({item.get('label')})" for item in items]
+            print(f" Property '{prop}' candidates: {candidate_list}")
+
+        print(f"Generating SPARQL query...")
+        sparql_query, explanation = self.generate_sparql_query(question, candidates)
+        print(f"Initial SPARQL Query:\n{sparql_query}")
+        print(f"Explanation: {explanation}")
+
+        retries = 0
+
+        while retries <= max_retries:
+            try:
+                print(f"Executing SPARQL query (attempt {retries + 1})...")
+                results = self.execute_query_and_format(sparql_query)
+                return {
+                    "success": True,
+                    "sparql": sparql_query,
+                    "explanation": explanation,
+                    "results": results
+                }
+            except Exception as e:
+                error_msg = str(e)
+                print(f"! Query failed with error: {error_msg}")
+                if retries == max_retries:
+                    return {
+                        "success": False,
+                        "sparql": sparql_query,
+                        "error": error_msg
+                    }
+                print(f"Requesting correction from LLM...")
+                sparql_query, correction_expl = self.correct_sparql(question, sparql_query, error_msg, candidates)
+                print(f"Corrected SPARQL Query:\n{sparql_query}")
+                print(f"Correction Details: {correction_expl}")
+                retries += 1
