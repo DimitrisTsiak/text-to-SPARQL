@@ -45,3 +45,9 @@ Ask Wikidata > Who was the father of Feynman?
 
 Melville Arthur Feynman
 ```
+
+### Validation Script
+validate the gemini model on the QALD-10 dataset (https://github.com/KGQA/QALD-10)
+```bash
+python validation.py --dataset qald10 --limit 5
+```

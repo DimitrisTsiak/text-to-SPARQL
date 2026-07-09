@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 import wikidata 
 
-TEMPERATURE = 0.1
+TEMPERATURE = 0
 
 SEED = 42
 #TODO: add more LLM API's

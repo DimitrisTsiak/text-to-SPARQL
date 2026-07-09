@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 venv/
+
+# Evaluation Dataset Folder
+.data/
+data/
