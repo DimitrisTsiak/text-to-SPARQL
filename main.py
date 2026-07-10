@@ -44,14 +44,15 @@ def print_results(results_data):
 def main():
     parser = argparse.ArgumentParser(description="Query Wikidata using natural language prompts")
     parser.add_argument("--query", required=False, nargs="?", help="The question in natural language: eg. when was Feynman born?")
-    parser.add_argument("--model", type=str, default="gemini-3.1-flash-lite", help="the name of the model")
+    parser.add_argument("--model", type=str, default=None, help="the name of the model (overrides config.yaml)")
+    parser.add_argument("--config", type=str, default="config.yaml", help="Path to YAML configuration file")
     args = parser.parse_args()
 
     # print(args.query, args.model)
     try:
-        pipeline = TextToSparqlPipeline(model_name=args.model)
+        pipeline = TextToSparqlPipeline(config_path=args.config, model_name=args.model)
     except Exception as e:
-        print(f"There was an error initializing the text to SPARQL pipiline: {e}")
+        print(f"There was an error initializing the text to SPARQL pipeline: {e}")
         sys.exit()
 
     print("Type your question and press Enter. Type 'exit' or 'quit' to close.")

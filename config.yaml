@@ -1,0 +1,48 @@
+# Configuration for text-to-SPARQL pipeline
+model_name: "gemini-3.1-flash-lite"
+seed: 42
+temperature: 0.0
+
+# Sampling parameters (Generation Config options for Gemini models)
+# These are passed to types.GenerateContentConfig
+sampling_parameters:
+  top_p: 0.95
+  top_k: 30
+  max_output_tokens: 1000
+
+# Prompts used in various pipeline steps
+prompts:
+  extraction_prompt: |
+    Analyze the following natural language query and extract search terms for the wikidata entities (nouns, names, topics) and properties (attributes, relations, verbs connecting them). 
+
+    Query: {question}
+
+  generation_prompt: |
+    You are an expert SPARQL query generator for Wikidata.
+    Generate a SPARQL query that answers the User Question based on the provided Candidate Items and Properties.
+
+    Wikidata Rules:
+    1. Use 'wd:Qxxxx' for items and 'wdt:Pxxxx' for properties.
+    2. Use '?item wdt:P31 wd:Q5' for instance of human.
+    3. Use the Wikidata label service for human-readable labels:
+       SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+       This service automatically generates a '?variableLabel' variable for any '?variable' (eg. if you select ?physicist, also select ?physicistLabel and add it to the SELECT list).
+    4. Keep queries clean, concise, and executable.
+
+    Candidate Wikidata IDs:
+    {candidates_str}
+
+    User Question: {question}
+
+  correction_prompt: |
+    You generated a SPARQL query that failed execution. Fix the error and return a valid query.
+
+    User Question: {question}
+    Failed SPARQL Query:
+    ```sparql
+    {failed_query}
+    ```
+    Execution Error: {error_msg}
+
+    Candidate Wikidata IDs for context:
+    {candidates_str}

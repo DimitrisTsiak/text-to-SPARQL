@@ -223,11 +223,23 @@ if __name__ == "__main__":
         "--time_outs",
         type=int,
         default=None,
-        help="Impose a time out after each validation run to avoid rpm limits")
-    parser.add_argument
+        help="Impose a time out after each validation run to avoid rpm limits"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="The name of the model (overrides config.yaml)"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config.yaml",
+        help="Path to YAML configuration file"
+    )
     args = parser.parse_args()
     
-    pipeline = TextToSparqlPipeline(model_name="gemini-3.1-flash-lite")
+    pipeline = TextToSparqlPipeline(config_path=args.config, model_name=args.model)
     
     # Initialize the data loader
     if args.dataset == "qald10":

@@ -1,5 +1,6 @@
 import os
 import json
+import yaml
 from typing import List, Dict, Any, Tuple
 from pydantic import BaseModel, Field
 from google import genai
@@ -7,12 +8,6 @@ from google.genai import types
 from dotenv import load_dotenv
 
 import wikidata 
-
-TEMPERATURE = 0
-
-SEED = 42
-#TODO: add more LLM API's
-#TODO: Load prompts and model from a YAML to streamline validation
 
 # Load env variables
 load_dotenv()
@@ -34,27 +29,77 @@ class SparqlCorrectionResult(BaseModel):
 
 class TextToSparqlPipeline:
     
-    def __init__(self, model_name:str = "gemini-3.1-flash-lite"):
-        api_key = os.environ.get("GEMINI_API_KEY")
+    def __init__(self, config_path: str = "config.yaml", model_name: str = None):
         self.client = genai.Client()
-        self.model_name = model_name
+        self.config_path = config_path
+        self.model_name = "gemini-3.1-flash-lite"
+        self.seed = 42
+        self.temperature = 0.0
+        self.sampling_parameters = {}
+        self.prompts = {}
+        
+        self.load_config(config_path)
+        if model_name:
+            self.model_name = model_name
+
+    def load_config(self, config_path: str):
+        """Loads configuration from a YAML file."""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        resolved_path = os.path.join(base_dir, config_path)
+        if not os.path.exists(resolved_path):
+            resolved_path = config_path
+            
+        if os.path.exists(resolved_path):
+            try:
+                with open(resolved_path, "r", encoding="utf-8") as f:
+                    config = yaml.safe_load(f)
+                if config:
+                    self.model_name = config.get("model_name", self.model_name)
+                    self.seed = config.get("seed", self.seed)
+                    self.temperature = config.get("temperature", self.temperature)
+                    self.sampling_parameters = config.get("sampling_parameters", {})
+                    self.prompts = config.get("prompts", {})
+            except Exception as e:
+                print(f"[Warning] Failed to load config file: {e}. Using default parameters.")
+        else:
+            print(f"[Warning] Config file not found at {resolved_path}. Using default parameters.")
+
+    def _get_generate_config(self, response_mime_type: str = None, response_schema: Any = None) -> types.GenerateContentConfig:
+        """Helper to construct GenerateContentConfig using YAML sampling parameters."""
+        config_kwargs = {}
+        if self.temperature is not None:
+            config_kwargs["temperature"] = self.temperature
+        if self.seed is not None:
+            config_kwargs["seed"] = self.seed
+            
+        # Merge other sampling parameters from YAML
+        for k, v in self.sampling_parameters.items():
+            config_kwargs[k] = v
+            
+        if response_mime_type:
+            config_kwargs["response_mime_type"] = response_mime_type
+        if response_schema:
+            config_kwargs["response_schema"] = response_schema
+            
+        return types.GenerateContentConfig(**config_kwargs)
+
 
     def find_entities_and_properties(self, question:str) -> Tuple[List[str], List[str]]:
         """Extract entities and properties from a natural language query using LLM prompting"""
-        prompt = (
-            "Analyze the following natural language query and extract search terms for the wikidata entities"
+        prompt_tmpl = self.prompts.get(
+            "extraction_prompt",
+            "Analyze the following natural language query and extract search terms for the wikidata entities "
             "(nouns, names, topics) and properties (attributes, relations, verbs connecting them). \n\n"
-            f"Query: {question}"
+            "Query: {question}"
         )
+        prompt = prompt_tmpl.replace("{question}", question)
 
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._get_generate_config(
                 response_mime_type="application/json",
-                response_schema=ExtractionResult,
-                temperature=TEMPERATURE,
-                seed=SEED
+                response_schema=ExtractionResult
             )
         )
         result = json.loads(response.text)
@@ -84,9 +129,9 @@ class TextToSparqlPipeline:
         Use the LLM to convert the natural language question to SPARQL query
         """
         candidates_str = json.dumps(candidates, indent=2)
-        #print(candidates_str)
         
-        prompt = (
+        prompt_tmpl = self.prompts.get(
+            "generation_prompt",
             "You are an expert SPARQL query generator for Wikidata.\n"
             "Generate a SPARQL query that answers the User Question based on the provided Candidate Items and Properties.\n\n"
             "Wikidata Rules:\n"
@@ -96,17 +141,17 @@ class TextToSparqlPipeline:
             "   SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n"
             "   This service automatically generates a '?variableLabel' variable for any '?variable' (eg. if you select ?physicist, also select ?physicistLabel and add it to the SELECT list).\n"
             "4. Keep queries clean, concise, and executable.\n\n"
-            f"Candidate Wikidata IDs:\n{candidates_str}\n\n"
-            f"User Question: {question}\n"
+            "Candidate Wikidata IDs:\n{candidates_str}\n\n"
+            "User Question: {question}\n"
         )
+        prompt = prompt_tmpl.replace("{candidates_str}", candidates_str).replace("{question}", question)
         
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._get_generate_config(
                 response_mime_type="application/json",
-                response_schema=SparqlGenerationResult,
-                temperature=TEMPERATURE
+                response_schema=SparqlGenerationResult
             )
         )
         result = json.loads(response.text)
@@ -119,21 +164,22 @@ class TextToSparqlPipeline:
         """
         candidates_str = json.dumps(candidates, indent=2)
         
-        prompt = (
+        prompt_tmpl = self.prompts.get(
+            "correction_prompt",
             "You generated a SPARQL query that failed execution. Fix the error and return a valid query.\n\n"
-            f"User Question: {question}\n"
-            f"Failed SPARQL Query:\n```sparql\n{failed_query}\n```\n"
-            f"Execution Error: {error_msg}\n\n"
-            f"Candidate Wikidata IDs for context:\n{candidates_str}\n"
+            "User Question: {question}\n"
+            "Failed SPARQL Query:\n```sparql\n{failed_query}\n```\n"
+            "Execution Error: {error_msg}\n\n"
+            "Candidate Wikidata IDs for context:\n{candidates_str}\n"
         )
+        prompt = prompt_tmpl.replace("{question}", question).replace("{failed_query}", failed_query).replace("{error_msg}", error_msg).replace("{candidates_str}", candidates_str)
         
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._get_generate_config(
                 response_mime_type="application/json",
-                response_schema=SparqlCorrectionResult,
-                temperature=TEMPERATURE
+                response_schema=SparqlCorrectionResult
             )
         )
         
