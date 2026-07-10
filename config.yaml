@@ -3,6 +3,12 @@ model_name: "gemini-3.1-flash-lite"
 seed: 42
 temperature: 0.0
 
+# Trajectory logging options
+trajectory_logging:
+  enabled: true
+  log_path: "trajectories.jsonl"
+
+
 # Sampling parameters (Generation Config options for Gemini models)
 # These are passed to types.GenerateContentConfig
 sampling_parameters:

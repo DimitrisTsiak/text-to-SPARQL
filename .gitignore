@@ -7,3 +7,5 @@ venv/
 # Evaluation Dataset Folder
 .data/
 data/
+
+trajectories.jsonl

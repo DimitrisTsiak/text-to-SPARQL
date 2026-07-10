@@ -37,6 +37,7 @@ class TextToSparqlPipeline:
         self.temperature = 0.0
         self.sampling_parameters = {}
         self.prompts = {}
+        self.trajectory_logging = {"enabled": False, "log_path": "trajectories.jsonl"}
         
         self.load_config(config_path)
         if model_name:
@@ -59,6 +60,7 @@ class TextToSparqlPipeline:
                     self.temperature = config.get("temperature", self.temperature)
                     self.sampling_parameters = config.get("sampling_parameters", {})
                     self.prompts = config.get("prompts", {})
+                    self.trajectory_logging = config.get("trajectory_logging", self.trajectory_logging)
             except Exception as e:
                 print(f"[Warning] Failed to load config file: {e}. Using default parameters.")
         else:
@@ -207,10 +209,34 @@ class TextToSparqlPipeline:
             "raw": results 
         }
     
+    def _save_trajectory(self, trajectory: Dict[str, Any]):
+        """Saves a pipeline run trajectory to a JSONL file if logging is enabled."""
+        if not self.trajectory_logging.get("enabled", False):
+            return
+        
+        log_path = self.trajectory_logging.get("log_path", "trajectories.jsonl")
+        
+        # Resolve log path relative to the script directory if it's relative
+        if not os.path.isabs(log_path):
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            log_path = os.path.join(base_dir, log_path)
+            
+        # Ensure parent directory exists
+        log_dir = os.path.dirname(log_path)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+            
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(trajectory, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"[Warning] Failed to write trajectory log: {e}")
+
     def run_pipeline(self, question:str, max_retries: int=3) -> Dict[str, Any]:
         """
         Natural language pipeline of natural language to SPARQL query with a correction loop on query execution
         """
+        import datetime
 
         print(f"Extracting entities and properties from the question...")
         entities, properties = self.find_entities_and_properties(question)
@@ -234,22 +260,58 @@ class TextToSparqlPipeline:
         print(f"Initial SPARQL Query:\n{sparql_query}")
         print(f"Explanation: {explanation}")
 
+        # Initialize trajectory structure
+        trajectory = {
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "question": question,
+            "entities": entities,
+            "properties": properties,
+            "candidates": candidates,
+            "attempts": [],
+            "success": False,
+            "final_sparql": None,
+            "error": None
+        }
+
         retries = 0
+        current_explanation = explanation
 
         while retries <= max_retries:
+            attempt_data = {
+                "attempt": retries + 1,
+                "sparql": sparql_query,
+                "explanation": current_explanation,
+                "success": False,
+                "error": None
+            }
             try:
                 print(f"Executing SPARQL query (attempt {retries + 1})...")
                 results = self.execute_query_and_format(sparql_query)
+                
+                attempt_data["success"] = True
+                trajectory["attempts"].append(attempt_data)
+                trajectory["success"] = True
+                trajectory["final_sparql"] = sparql_query
+                self._save_trajectory(trajectory)
+                
                 return {
                     "success": True,
                     "sparql": sparql_query,
-                    "explanation": explanation,
+                    "explanation": current_explanation,
                     "results": results
                 }
             except Exception as e:
                 error_msg = str(e)
+                attempt_data["error"] = error_msg
+                trajectory["attempts"].append(attempt_data)
+                
                 print(f"! Query failed with error: {error_msg}")
                 if retries == max_retries:
+                    trajectory["success"] = False
+                    trajectory["final_sparql"] = sparql_query
+                    trajectory["error"] = error_msg
+                    self._save_trajectory(trajectory)
+                    
                     return {
                         "success": False,
                         "sparql": sparql_query,
@@ -257,6 +319,7 @@ class TextToSparqlPipeline:
                     }
                 print(f"Requesting correction from LLM...")
                 sparql_query, correction_expl = self.correct_sparql(question, sparql_query, error_msg, candidates)
+                current_explanation = correction_expl
                 print(f"Corrected SPARQL Query:\n{sparql_query}")
                 print(f"Correction Details: {correction_expl}")
                 retries += 1
