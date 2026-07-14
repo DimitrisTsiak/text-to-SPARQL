@@ -36,14 +36,21 @@ pip install -r requirements.txt
 
 ### Usage
 
+Run the program without any arguments to see the menu prompt:
 ```bash
-python main.py 
+python main.py
+```
+This will allow you to select either the Command Line Interface (CLI) or the Web Interface.
+You can now query the Wikidata using natural language:
+```bash
+"Who was the father of Feynman?"
 ```
 
-```bash
-Ask Wikidata > Who was the father of Feynman?
+#### Web Interface
 
-Melville Arthur Feynman
+To run the web interface on a custom port, use the `--port` flag:
+```bash
+python main.py --web --port 8080
 ```
 
 ### Validation Script

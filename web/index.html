@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikidata Assistant</title>
+    <!-- Modern Minimal Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="minimal-app">
+        <!-- Main Content Area -->
+        <main class="content-container">
+            <header class="app-header">
+                <h1>Wikidata Assistant</h1>
+                <p class="subtitle">Query Wikidata in natural language.</p>
+            </header>
+
+            <section class="search-section">
+                <form id="query-form" class="query-form">
+                    <input type="text" id="query-input" placeholder="Ask a question..." required autocomplete="off">
+                    <button type="submit" id="submit-btn" class="btn-submit">
+                        <span class="btn-text">Search</span>
+                        <span class="spinner" hidden></span>
+                    </button>
+                </form>
+            </section>
+
+            <div id="pipeline-status" class="pipeline-status" hidden>
+                <span class="pulse-indicator"></span>
+                <span id="status-text">Extracting entities...</span>
+            </div>
+
+            <div id="result-output" class="result-output" hidden>
+                <div class="query-meta">
+                    <div class="sparql-box">
+                        <div class="sparql-header">
+                            <span>SPARQL Query</span>
+                            <button id="copy-btn" class="copy-btn">Copy</button>
+                        </div>
+                        <pre><code id="sparql-code" class="sparql-code"></code></pre>
+                    </div>
+                </div>
+
+                <div class="results-table-wrapper">
+                    <h3>Results</h3>
+                    <div id="table-container" class="table-container">
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/app.js"></script>
+</body>
+</html>

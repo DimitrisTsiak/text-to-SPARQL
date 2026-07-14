@@ -1,0 +1,267 @@
+/* Minimal Modern Design with Warm Color Scheme */
+:root {
+    --bg-app: #fdf2f2;          /* Light Red / Soft Coral Rose background */
+    --bg-card: #ffffff;
+    --text-main: #3b0712;       /* Deep warm burgundy (extremely readable on light red) */
+    --text-yellowish: #b45309;  /* Dark Yellowish Ochre / Gold for primary headings and accents */
+    --text-muted: #991b1b;      /* Darker red-brown for muted details */
+    
+    --border-color: #fecaca;    /* Soft pink-red border */
+    --border-active: #f59e0b;   /* Yellow/Gold border for focus */
+    
+    --color-yellow: #d97706;    /* Amber/Yellow for buttons */
+    --color-yellow-hover: #b45309;
+    
+    --font-sans: 'Outfit', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 60px 20px;
+}
+
+.minimal-app {
+    width: 100%;
+    max-width: 680px;
+}
+
+.app-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.app-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-yellowish);
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Search Box Form */
+.search-section {
+    margin-bottom: 24px;
+}
+
+.query-form {
+    display: flex;
+    gap: 12px;
+}
+
+#query-input {
+    flex: 1;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+#query-input:focus {
+    border-color: var(--border-active);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+.btn-submit {
+    background-color: var(--color-yellow);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-submit:hover:not(:disabled) {
+    background-color: var(--color-yellow-hover);
+}
+
+.btn-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Minimal Pipeline Status indicator */
+.pipeline-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.pulse-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-yellow);
+    box-shadow: 0 0 8px var(--color-yellow);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.5; }
+}
+
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Result Output styling */
+.result-output {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.query-meta {
+    margin-bottom: 24px;
+}
+
+.sparql-box {
+    background: #fefdf6; /* Light yellowish cream card */
+    border: 1px solid #fef08a; /* Soft yellow border */
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.sparql-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-yellowish);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.copy-btn {
+    background: transparent;
+    border: 1px solid #fef08a;
+    color: var(--text-yellowish);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+    background: #fef9c3;
+}
+
+.sparql-code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: #78350f; /* Dark amber text */
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.results-table-wrapper h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-yellowish);
+    margin-bottom: 12px;
+}
+
+.table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+.results-table th {
+    background: #fef3c7; /* Soft yellow header */
+    color: #78350f;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.results-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
+}
+
+.results-table tr:last-child td {
+    border-bottom: none;
+}
+
+.uri-link {
+    color: var(--text-yellowish);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.uri-link:hover {
+    text-decoration: underline;
+}
+
+.empty-state {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px;
+}

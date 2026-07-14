@@ -3,6 +3,7 @@ import sys
 import argparse
 from dotenv import load_dotenv
 from text_to_sparql_pipeline import TextToSparqlPipeline
+import web_server
 
 
 def print_results(results_data):
@@ -46,18 +47,19 @@ def main():
     parser.add_argument("--query", required=False, nargs="?", help="The question in natural language: eg. when was Feynman born?")
     parser.add_argument("--model", type=str, default=None, help="the name of the model (overrides config.yaml)")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to YAML configuration file")
+    parser.add_argument("--web", action="store_true", help="Launch the web interface")
+    parser.add_argument("--port", type=int, default=8080, help="Port to run the web server on")
     args = parser.parse_args()
 
-    # print(args.query, args.model)
     try:
         pipeline = TextToSparqlPipeline(config_path=args.config, model_name=args.model)
     except Exception as e:
         print(f"There was an error initializing the text to SPARQL pipeline: {e}")
         sys.exit()
 
-    print("Type your question and press Enter. Type 'exit' or 'quit' to close.")
-    print("~-" * 25)
-    
+    if args.web:
+        web_server.start_server(pipeline, port=args.port)
+        return
 
     if args.query:
         question = args.query
@@ -71,8 +73,23 @@ def main():
                 print(f"\n! Failed to answer the question. Error: {output.get('error')}")
         except Exception as e:
             print(f"\n! An error occurred during pipeline run: {e}")
+        return
+
+    print("\n--- Wikidata Natural Language SPARQL Assistant ---")
+    print("Select Interface Mode:")
+    print("  1. Interactive Command Line Interface (CLI)")
+    print("  2. Web Interface (Browser)")
+    
+    try:
+        choice = input("\nEnter choice 1 or 2: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting...")
+        sys.exit()
+
+    if choice == "2":
+        web_server.start_server(pipeline, port=args.port)
     else:
-        print("\n--- Wikidata Natural Language SPARQL Interface ---")
+        print("\n--- Wikidata Natural Language SPARQL CLI Interface ---")
         print("Type your question and press Enter. Type 'exit' or 'quit' to close.")
         print("-" * 50)
         
