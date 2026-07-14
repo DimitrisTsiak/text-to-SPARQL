@@ -1,6 +1,8 @@
+import os
 import re
 import time
 import json
+import datetime
 import sys
 import argparse
 from dataloader import Qald10DataLoader
@@ -204,6 +206,86 @@ class SparqlEvaluator:
         print("=" * 60)
 
 
+def save_evaluation_report(config_path: str, results: List[Dict[str, Any]], dataset_name: str, limit: int = None):
+    # Get current timestamp
+    now = datetime.datetime.now()
+    timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+    
+    # Read config file content
+    config_content = "Config file not found or not specified."
+    if config_path and os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_content = f.read()
+        except Exception as e:
+            config_content = f"Error reading config file: {e}"
+            
+    # Calculate metrics
+    total = len(results)
+    successful_runs = sum(1 for r in results if r["success"])
+    semantic_matches = sum(1 for r in results if r["semantic_match"])
+    avg_f1 = sum(r["f1_score"] for r in results) / total if total > 0 else 0
+    avg_entity_recall = sum(r["entity_recall"] for r in results) / total if total > 0 else 0
+    avg_property_recall = sum(r["property_recall"] for r in results) / total if total > 0 else 0
+    avg_time = sum(r["elapsed_sec"] for r in results) / total if total > 0 else 0
+    
+    # Construct Markdown Report
+    report_md = f"""# SPARQL Evaluation Report - {now.strftime('%Y-%m-%d %H:%M:%S')}
+
+## Summary Metrics
+- **Dataset**: {dataset_name} (Limit: {limit if limit is not None else "None"})
+- **Total Test Cases**: {total}
+- **Pipeline Success Rate**: {successful_runs}/{total} ({successful_runs/total*100:.1f}% if total > 0 else 0%)
+- **Semantic Match Rate (F1=1)**: {semantic_matches}/{total} ({semantic_matches/total*100:.1f}% if total > 0 else 0%)
+- **Average Answer F1-Score**: {avg_f1:.2f}
+- **Average Entity Recall**: {avg_entity_recall:.2f}
+- **Average Property Recall**: {avg_property_recall:.2f}
+- **Average Execution Latency**: {avg_time:.2f}s
+
+## Configuration Used
+```yaml
+{config_content}
+```
+
+## Detailed Test Cases
+"""
+    for idx, r in enumerate(results, 1):
+        status = "SUCCESS" if r["success"] else "FAILED"
+        match_status = "MATCH" if r["semantic_match"] else "MISMATCH"
+        report_md += f"""
+### [{idx}] Question: {r['question']}
+- **Status**: {status} | **Semantic Match**: {match_status} | **Answer F1**: {r['f1_score']:.2f}
+- **Entity Recall**: {r['entity_recall']:.2f} | **Property Recall**: {r['property_recall']:.2f} | **Latency**: {r['elapsed_sec']:.2f}s
+"""
+        if r["error"]:
+            report_md += f"- **Error**: `{r['error']}`\n"
+        
+        report_md += f"""- **Generated SPARQL**:
+```sparql
+{r['generated_sparql']}
+```
+- **Target SPARQL**:
+```sparql
+{r['target_sparql']}
+```
+---
+"""
+    
+    # Ensure reports directory exists
+    reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    
+    filename = f"evaluation_report_{timestamp_str}.md"
+    filepath = os.path.join(reports_dir, filename)
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(report_md)
+        print(f"\n[Info] Saved evaluation report to: {filepath}")
+    except Exception as e:
+        print(f"\n[Warning] Failed to save evaluation report: {e}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate TextToSparqlPipeline")
     parser.add_argument(
@@ -256,5 +338,8 @@ if __name__ == "__main__":
     
     # Run evaluator
     evaluator = SparqlEvaluator(pipeline, impose_time_outs=args.time_outs)
-    evaluator.run_evaluation(loader)
+    results = evaluator.run_evaluation(loader)
+    
+    # Save evaluation report
+    save_evaluation_report(args.config, results, args.dataset, args.limit)
 
