@@ -1,65 +1,38 @@
 import os
 import json
-import urllib.parse
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import uvicorn
 import webbrowser
-from text_to_sparql_pipeline import TextToSparqlPipeline
+from threading import Timer
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 
-class WebServerHandler(BaseHTTPRequestHandler):
-    pipeline = None  # Will be set before starting the server
+def start_server(pipeline, port=8080):
+    app = FastAPI(title="Wikidata Assistant API")
     
-    def log_message(self, format, *args):
-        # Suppress request logging to keep console output clean
-        pass
-
-    def do_GET(self):
-        url_path = urllib.parse.urlparse(self.path).path
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    web_dir = os.path.join(base_dir, "web")
+    
+    @app.get("/")
+    async def read_root():
+        return FileResponse(os.path.join(web_dir, "index.html"), headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
         
-        # Static files serving
-        if url_path == "/" or url_path == "/index.html":
-            self.serve_static("index.html", "text/html")
-        elif url_path == "/style.css":
-            self.serve_static("style.css", "text/css")
-        elif url_path == "/app.js":
-            self.serve_static("app.js", "application/javascript")
-        elif url_path == "/api/trajectories":
-            self.serve_trajectories()
-        elif url_path == "/api/config":
-            self.serve_config()
-        else:
-            self.send_error(404, "File Not Found")
-            
-    def do_POST(self):
-        url_path = urllib.parse.urlparse(self.path).path
+    @app.get("/index.html")
+    async def read_index():
+        return FileResponse(os.path.join(web_dir, "index.html"), headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
         
-        if url_path == "/api/query":
-            self.handle_query()
-        else:
-            self.send_error(404, "Not Found")
-            
-    def serve_static(self, filename, content_type):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(base_dir, "web", filename)
+    @app.get("/style.css")
+    async def read_css():
+        return FileResponse(os.path.join(web_dir, "style.css"), headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
         
-        if not os.path.exists(file_path):
-            self.send_error(404, f"File {filename} not found")
-            return
-            
-        try:
-            with open(file_path, "rb") as f:
-                content = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", len(content))
-            self.end_headers()
-            self.wfile.write(content)
-        except Exception as e:
-            self.send_error(500, f"Error reading file: {e}")
-            
-    def serve_trajectories(self):
-        # Return recent trajectories from trajectories.jsonl
+    @app.get("/app.js")
+    async def read_js():
+        return FileResponse(os.path.join(web_dir, "app.js"), headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+        
+    @app.get("/api/trajectories")
+    async def get_trajectories():
         trajectories = []
-        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trajectories.jsonl")
+        log_path = os.path.join(base_dir, "trajectories.jsonl")
         if os.path.exists(log_path):
             try:
                 with open(log_path, "r", encoding="utf-8") as f:
@@ -70,46 +43,33 @@ class WebServerHandler(BaseHTTPRequestHandler):
                 pass
         # Return latest 20 trajectories, reversed
         trajectories = list(reversed(trajectories))[:20]
-        
-        response_bytes = json.dumps(trajectories, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", len(response_bytes))
-        self.end_headers()
-        self.wfile.write(response_bytes)
+        return trajectories
 
-    def serve_config(self):
-        # Return pipeline config
+    @app.get("/api/config")
+    async def get_config():
         config_data = {
-            "model_name": self.pipeline.model_name,
-            "seed": self.pipeline.seed,
-            "temperature": self.pipeline.temperature
+            "model_name": pipeline.model_name,
+            "seed": pipeline.seed,
+            "temperature": pipeline.temperature
         }
-        response_bytes = json.dumps(config_data, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", len(response_bytes))
-        self.end_headers()
-        self.wfile.write(response_bytes)
+        return config_data
+
+    class QueryRequest(BaseModel):
+        question: str
+
+    @app.post("/api/query")
+    async def post_query(request: QueryRequest):
+        question = request.question.strip()
+        if not question:
+            return JSONResponse(status_code=400, content={"error": "Question cannot be empty"})
             
-    def handle_query(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        post_data = self.rfile.read(content_length)
-        
         try:
-            req_data = json.loads(post_data.decode("utf-8"))
-            question = req_data.get("question", "").strip()
-            
-            if not question:
-                self.send_json_error("Question cannot be empty", 400)
-                return
-                
             # Run pipeline
-            pipeline_result = self.pipeline.run_pipeline(question)
+            pipeline_result = pipeline.run_pipeline(question)
             
             # Read the latest trajectory for this question (since it was just written)
             trajectory = None
-            log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trajectories.jsonl")
+            log_path = os.path.join(base_dir, "trajectories.jsonl")
             if os.path.exists(log_path):
                 try:
                     with open(log_path, "r", encoding="utf-8") as f:
@@ -126,39 +86,23 @@ class WebServerHandler(BaseHTTPRequestHandler):
                 "result": pipeline_result,
                 "trajectory": trajectory
             }
-            
-            response_bytes = json.dumps(response_data, ensure_ascii=False).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", len(response_bytes))
-            self.end_headers()
-            self.wfile.write(response_bytes)
+            return response_data
             
         except Exception as e:
-            self.send_json_error(f"Error executing query: {str(e)}", 500)
-            
-    def send_json_error(self, message, status_code=500):
-        response_bytes = json.dumps({"error": message}).encode("utf-8")
-        self.send_response(status_code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", len(response_bytes))
-        self.end_headers()
-        self.wfile.write(response_bytes)
+            return JSONResponse(status_code=500, content={"error": f"Error executing query: {str(e)}"})
 
-def start_server(pipeline, port=8080):
-    WebServerHandler.pipeline = pipeline
-    server = HTTPServer(("localhost", port), WebServerHandler)
     url = f"http://localhost:{port}/"
-    print(f"\nStarting Web Server on {url} ...")
+    print(f"\nStarting FastAPI Web Server on {url} ...")
     print("Press Ctrl+C to stop the server.")
     
     # Auto-open browser
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
-        
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nWeb Server stopped.")
+    def open_browser():
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+            
+    Timer(1.0, open_browser).start()
+    
+    # Start Uvicorn
+    uvicorn.run(app, host="localhost", port=port, access_log=False)

@@ -134,6 +134,16 @@ body {
     animation: pulse 1.5s infinite;
 }
 
+.pulse-indicator.idle {
+    background-color: #94a3b8;
+    box-shadow: none;
+    animation: none;
+}
+
+[hidden] {
+    display: none !important;
+}
+
 @keyframes pulse {
     0% { transform: scale(0.95); opacity: 0.5; }
     50% { transform: scale(1.1); opacity: 1; }

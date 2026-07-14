@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Status Stage Indicators
     const pipelineStatus = document.getElementById('pipeline-status');
     const statusText = document.getElementById('status-text');
+    const pulseIndicator = document.getElementById('pulse-indicator');
     
     // Result Elements
     const resultOutput = document.getElementById('result-output');
@@ -35,13 +36,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Execute pipeline call
+    function resetStatusToIdle() {
+        statusText.textContent = "Waiting for query...";
+        pulseIndicator.classList.add('idle');
+    }
+
     async function executeQuery(question) {
         // Reset states
         submitBtn.disabled = true;
         spinner.hidden = false;
         btnText.textContent = "Search";
         resultOutput.hidden = true;
-        pipelineStatus.hidden = false;
+        
+        // Remove idle class to start pulsing
+        pulseIndicator.classList.remove('idle');
         
         startStatusSimulation();
 
@@ -56,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.ok) {
                 const data = await response.json();
-                pipelineStatus.hidden = true;
+                resetStatusToIdle();
                 submitBtn.disabled = false;
                 spinner.hidden = true;
                 
@@ -146,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render pipeline failures
     function renderFailure(errorMsg) {
-        pipelineStatus.hidden = true;
+        resetStatusToIdle();
         submitBtn.disabled = false;
         spinner.hidden = true;
         resultOutput.hidden = false;
