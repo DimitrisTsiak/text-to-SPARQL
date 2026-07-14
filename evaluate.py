@@ -102,6 +102,7 @@ class SparqlEvaluator:
         precision = 0.0
         recall = 0.0
         f1_score = 0.0
+        semantic_match = False
         
         target_results = None
         gen_results = None

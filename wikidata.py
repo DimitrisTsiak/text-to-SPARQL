@@ -34,12 +34,15 @@ def search_wikidata(search_term:str, search_type: str, limit: int = 4) -> List[D
         data = response.json()
         results = []
         for item in data.get("search", []):
-            results.append({
+            res_item = {
                 "id": item.get("id"),
                 "label": item.get("label", "No Label"),
                 "description": item.get("description", "No Description"),
                 "url": item.get("concepturi", f"https://www.wikidata.org/wiki/{item.get('id')}")
-            })
+            }
+            if "datatype" in item:
+                res_item["datatype"] = item["datatype"]
+            results.append(res_item)
         # print(results['id'])
         return results
 

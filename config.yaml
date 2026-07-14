@@ -34,6 +34,7 @@ prompts:
        SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
        This service automatically generates a '?variableLabel' variable for any '?variable' (eg. if you select ?physicist, also select ?physicistLabel and add it to the SELECT list).
     4. Keep queries clean, concise, and executable.
+    5. Pay close attention to the datatype of candidate properties (e.g., 'wikibase-item' links to items, 'time' is a date, 'quantity' is numeric). For 'time', compare using xsd:dateTime (e.g., ?date >= "1900-01-01"^^xsd:dateTime) or bind year (e.g., BIND(year(?date) AS ?year)). For 'quantity', compare or filter numerically (e.g., ?population > 100000).
 
     Candidate Wikidata IDs:
     {candidates_str}

@@ -142,7 +142,8 @@ class TextToSparqlPipeline:
             "3. Use the Wikidata label service for human-readable labels:\n"
             "   SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n"
             "   This service automatically generates a '?variableLabel' variable for any '?variable' (eg. if you select ?physicist, also select ?physicistLabel and add it to the SELECT list).\n"
-            "4. Keep queries clean, concise, and executable.\n\n"
+            "4. Keep queries clean, concise, and executable.\n"
+            "5. Pay close attention to the datatype of candidate properties (e.g., 'wikibase-item' links to items, 'time' is a date, 'quantity' is numeric). For 'time', compare using xsd:dateTime (e.g., ?date >= \"1900-01-01\"^^xsd:dateTime) or bind year (e.g., BIND(year(?date) AS ?year)). For 'quantity', compare or filter numerically (e.g., ?population > 100000).\n\n"
             "Candidate Wikidata IDs:\n{candidates_str}\n\n"
             "User Question: {question}\n"
         )
@@ -287,6 +288,23 @@ class TextToSparqlPipeline:
             try:
                 print(f"Executing SPARQL query (attempt {retries + 1})...")
                 results = self.execute_query_and_format(sparql_query)
+                
+                # Check for empty results logical warning
+                if not results.get("rows"):
+                    # Check if we have already attempted this exact query
+                    already_attempted = any(
+                        att.get("sparql", "").strip() == sparql_query.strip()
+                        for att in trajectory["attempts"]
+                    )
+                    if not already_attempted:
+                        raise RuntimeError(
+                            "The query executed successfully but returned 0 results. "
+                            "This might be a logical error. Common causes include:\n"
+                            "1. Reversing subject and object (e.g., '?item wdt:P22 wd:Q1339' instead of 'wd:Q1339 wdt:P22 ?item').\n"
+                            "2. Incorrect Wikidata entity ID (Q-number) or property ID (P-number).\n"
+                            "3. Overly restrictive triple patterns or FILTER conditions.\n"
+                            "If 0 results are indeed correct and expected for this query, generate the EXACT SAME query again to proceed."
+                        )
                 
                 attempt_data["success"] = True
                 trajectory["attempts"].append(attempt_data)

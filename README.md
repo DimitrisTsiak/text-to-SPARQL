@@ -56,5 +56,5 @@ python main.py --web --port 8080
 ### Validation Script
 validate the gemini model on the QALD-10 dataset (https://github.com/KGQA/QALD-10)
 ```bash
-python validation.py --dataset qald10 --limit 5
+python evaluate.py --dataset qald10 --limit 5
 ```
