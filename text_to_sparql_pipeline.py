@@ -44,27 +44,40 @@ class TextToSparqlPipeline:
             self.model_name = model_name
 
     def load_config(self, config_path: str):
-        """Loads configuration from a YAML file."""
+        """Loads configuration from a YAML file. Raises error if file is missing or invalid."""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         resolved_path = os.path.join(base_dir, config_path)
         if not os.path.exists(resolved_path):
             resolved_path = config_path
             
-        if os.path.exists(resolved_path):
-            try:
-                with open(resolved_path, "r", encoding="utf-8") as f:
-                    config = yaml.safe_load(f)
-                if config:
-                    self.model_name = config.get("model_name", self.model_name)
-                    self.seed = config.get("seed", self.seed)
-                    self.temperature = config.get("temperature", self.temperature)
-                    self.sampling_parameters = config.get("sampling_parameters", {})
-                    self.prompts = config.get("prompts", {})
-                    self.trajectory_logging = config.get("trajectory_logging", self.trajectory_logging)
-            except Exception as e:
-                print(f"[Warning] Failed to load config file: {e}. Using default parameters.")
-        else:
-            print(f"[Warning] Config file not found at {resolved_path}. Using default parameters.")
+        if not os.path.exists(resolved_path):
+            raise FileNotFoundError(f"Required configuration file not found at: {resolved_path}")
+            
+        try:
+            with open(resolved_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to parse config file at {resolved_path}: {e}")
+            
+        if not config:
+            raise ValueError(f"Config file at {resolved_path} is empty.")
+            
+        self.model_name = config.get("model_name", self.model_name)
+        self.seed = config.get("seed", self.seed)
+        self.temperature = config.get("temperature", self.temperature)
+        self.sampling_parameters = config.get("sampling_parameters", {})
+        
+        # Load and validate prompts (Single Source of Truth)
+        self.prompts = config.get("prompts")
+        if not self.prompts:
+            raise KeyError(f"Missing required 'prompts' section in configuration file: {resolved_path}")
+            
+        required_prompts = ["extraction_prompt", "generation_prompt", "correction_prompt"]
+        for key in required_prompts:
+            if key not in self.prompts or not self.prompts[key]:
+                raise KeyError(f"Missing required prompt key '{key}' in 'prompts' section of config: {resolved_path}")
+                
+        self.trajectory_logging = config.get("trajectory_logging", self.trajectory_logging)
 
     def _get_generate_config(self, response_mime_type: str = None, response_schema: Any = None) -> types.GenerateContentConfig:
         """Helper to construct GenerateContentConfig using YAML sampling parameters."""
@@ -88,12 +101,7 @@ class TextToSparqlPipeline:
 
     def find_entities_and_properties(self, question:str) -> Tuple[List[str], List[str]]:
         """Extract entities and properties from a natural language query using LLM prompting"""
-        prompt_tmpl = self.prompts.get(
-            "extraction_prompt",
-            "Analyze the following natural language query and extract search terms for the wikidata entities "
-            "(nouns, names, topics) and properties (attributes, relations, verbs connecting them). \n\n"
-            "Query: {question}"
-        )
+        prompt_tmpl = self.prompts["extraction_prompt"]
         prompt = prompt_tmpl.replace("{question}", question)
 
         response = self.client.models.generate_content(
@@ -132,21 +140,7 @@ class TextToSparqlPipeline:
         """
         candidates_str = json.dumps(candidates, indent=2)
         
-        prompt_tmpl = self.prompts.get(
-            "generation_prompt",
-            "You are an expert SPARQL query generator for Wikidata.\n"
-            "Generate a SPARQL query that answers the User Question based on the provided Candidate Items and Properties.\n\n"
-            "Wikidata Rules:\n"
-            "1. Use 'wd:Qxxxx' for items and 'wdt:Pxxxx' for properties.\n"
-            "2. Use '?item wdt:P31 wd:Q5' for instance of human.\n"
-            "3. Use the Wikidata label service for human-readable labels:\n"
-            "   SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n"
-            "   This service automatically generates a '?variableLabel' variable for any '?variable' (eg. if you select ?physicist, also select ?physicistLabel and add it to the SELECT list).\n"
-            "4. Keep queries clean, concise, and executable.\n"
-            "5. Pay close attention to the datatype of candidate properties (e.g., 'wikibase-item' links to items, 'time' is a date, 'quantity' is numeric). For 'time', compare using xsd:dateTime (e.g., ?date >= \"1900-01-01\"^^xsd:dateTime) or bind year (e.g., BIND(year(?date) AS ?year)). For 'quantity', compare or filter numerically (e.g., ?population > 100000).\n\n"
-            "Candidate Wikidata IDs:\n{candidates_str}\n\n"
-            "User Question: {question}\n"
-        )
+        prompt_tmpl = self.prompts["generation_prompt"]
         prompt = prompt_tmpl.replace("{candidates_str}", candidates_str).replace("{question}", question)
         
         response = self.client.models.generate_content(
@@ -167,14 +161,7 @@ class TextToSparqlPipeline:
         """
         candidates_str = json.dumps(candidates, indent=2)
         
-        prompt_tmpl = self.prompts.get(
-            "correction_prompt",
-            "You generated a SPARQL query that failed execution. Fix the error and return a valid query.\n\n"
-            "User Question: {question}\n"
-            "Failed SPARQL Query:\n```sparql\n{failed_query}\n```\n"
-            "Execution Error: {error_msg}\n\n"
-            "Candidate Wikidata IDs for context:\n{candidates_str}\n"
-        )
+        prompt_tmpl = self.prompts["correction_prompt"]
         prompt = prompt_tmpl.replace("{question}", question).replace("{failed_query}", failed_query).replace("{error_msg}", error_msg).replace("{candidates_str}", candidates_str)
         
         response = self.client.models.generate_content(
